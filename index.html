@@ -1,38 +1,182 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
+    <meta charset="UTF-8">
     <style>
-        body { background: #a2d149; font-family: 'Comic Sans MS', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-        .farm-area { background: #8b5a2b; padding: 40px; border-radius: 30px; border: 8px solid #5d3a1a; box-shadow: 0 10px 0 #3d2611; text-align: center; }
-        .word-to-type { font-size: 48px; color: white; text-shadow: 2px 2px 0 #000; margin-bottom: 20px; letter-spacing: 5px; }
-        input { font-size: 24px; padding: 10px; border-radius: 15px; border: none; outline: none; text-align: center; }
-        .stats { margin-top: 20px; color: #fff; font-weight: bold; }
+        :root {
+            --bg-color: #a2d149;
+            --font-main: #5d3a1a;
+            --text-gray: rgba(93, 58, 26, 0.4);
+            --correct: #ffffff;
+            --wrong: #ff4d4d;
+            --accent: #ffd700;
+        }
+
+        body {
+            background: var(--bg-color);
+            font-family: 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            color: var(--font-main);
+        }
+
+        /* МЕНЮ */
+        .screen { display: none; text-align: center; width: 80%; max-width: 800px; }
+        .active { display: block; animation: fadeIn 0.5s; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .btn {
+            background: #8b5a2b;
+            color: white;
+            padding: 15px 30px;
+            border-radius: 20px;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            margin: 10px;
+            box-shadow: 0 6px 0 #3d2611;
+            transition: 0.1s;
+        }
+
+        .btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #3d2611; }
+
+        /* ИГРОВАЯ ЗОНА (Monkeytype style) */
+        .game-container { position: relative; font-size: 32px; line-height: 1.5; text-align: left; padding: 40px; background: rgba(0,0,0,0.1); border-radius: 25px; }
+        
+        #words-wrapper { position: relative; color: var(--text-gray); font-weight: bold; }
+        
+        .char { position: relative; }
+        .char.correct { color: var(--correct); }
+        .char.wrong { color: var(--wrong); }
+
+        #caret {
+            position: absolute;
+            width: 3px;
+            height: 1.2em;
+            background: var(--accent);
+            border-radius: 2px;
+            transition: all 0.1s ease;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+        #hidden-input { position: absolute; opacity: 0; pointer-events: none; }
+
+        .icon-hint { font-size: 80px; margin-bottom: 20px; }
     </style>
 </head>
 <body>
-    <div class="farm-area">
-        <div id="icon">🌱</div>
-        <div class="word-to-type" id="targetWord">CARROT</div>
-        <input type="text" id="typer" autofocus placeholder="Печатай тут...">
-        <div class="stats">Уровень: <span id="lvl">1</span> | Монеты: <span id="coins">0</span></div>
+
+    <div id="menu" class="screen active">
+        <h1 style="font-size: 60px; text-shadow: 3px 3px 0 #8b5a2b; color: white;">TYPING FARM 🌾</h1>
+        <button class="btn" onclick="startGame('learn')">ОБУЧЕНИЕ (СЛОВА)</button>
+        <button class="btn" onclick="startGame('speed')">СКОРОСТЬ (ТЕКСТЫ)</button>
+        <button class="btn" onclick="showScreen('settings')">НАСТРОЙКИ</button>
+    </div>
+
+    <div id="game" class="screen">
+        <div class="icon-hint" id="game-icon">🌱</div>
+        <div class="game-container" onclick="focusInput()">
+            <div id="caret"></div>
+            <div id="words-wrapper"></div>
+            <input type="text" id="hidden-input">
+        </div>
+        <button class="btn" onclick="showScreen('menu')" style="margin-top: 40px; font-size: 14px;">В МЕНЮ</button>
+    </div>
+
+    <div id="settings" class="screen">
+        <h2>НАСТРОЙКИ</h2>
+        <p>Язык: <button class="btn">RU / EN</button></p>
+        <button class="btn" onclick="showScreen('menu')">НАЗАД</button>
     </div>
 
     <script>
-        const target = document.getElementById('targetWord');
-        const input = document.getElementById('typer');
-        const coinsEl = document.getElementById('coins');
-        let coins = 0;
+        const wordsData = {
+            learn: [
+                { word: 'CARROT', icon: '🥕' }, { word: 'TRACTOR', icon: '🚜' },
+                { word: 'WHEAT', icon: '🌾' }, { word: 'CHICKEN', icon: '🐔' }
+            ],
+            speed: [
+                "The sun rises over the green fields of our small farm.",
+                "Harvesting wheat requires patience and a good tractor.",
+                "Fresh milk and warm bread are the best part of the morning."
+            ]
+        };
 
-        input.addEventListener('input', () => {
-            if (input.value.toUpperCase() === target.innerText) {
-                coins += 10;
-                coinsEl.innerText = coins;
-                input.value = '';
-                // Тут будет смена слова
-                target.innerText = "APPLE";
-                document.getElementById('icon').innerText = "🍎";
+        let currentMode = 'learn';
+        let currentIndex = 0;
+        let charIndex = 0;
+
+        function showScreen(id) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+        }
+
+        function startGame(mode) {
+            currentMode = mode;
+            currentIndex = 0;
+            charIndex = 0;
+            showScreen('game');
+            loadText();
+            focusInput();
+        }
+
+        function loadText() {
+            const wrapper = document.getElementById('words-wrapper');
+            let text = "";
+            
+            if(currentMode === 'learn') {
+                text = wordsData.learn[currentIndex].word;
+                document.getElementById('game-icon').innerText = wordsData.learn[currentIndex].icon;
+            } else {
+                text = wordsData.speed[currentIndex % wordsData.speed.length];
+                document.getElementById('game-icon').innerText = "⏱️";
             }
+
+            wrapper.innerHTML = text.split('').map(char => `<span class="char">${char}</span>`).join('');
+            updateCaret();
+        }
+
+        const input = document.getElementById('hidden-input');
+        input.addEventListener('input', () => {
+            const chars = document.querySelectorAll('.char');
+            const targetChar = chars[charIndex].innerText;
+            const typedChar = input.value.slice(-1).toUpperCase();
+
+            if (typedChar === targetChar.toUpperCase()) {
+                chars[charIndex].classList.add('correct');
+                charIndex++;
+            } else {
+                chars[charIndex].classList.add('wrong');
+            }
+
+            if (charIndex === chars.length) {
+                currentIndex++;
+                charIndex = 0;
+                input.value = "";
+                loadText();
+            }
+            updateCaret();
         });
+
+        function updateCaret() {
+            const chars = document.querySelectorAll('.char');
+            const caret = document.getElementById('caret');
+            if(chars[charIndex]) {
+                caret.style.left = chars[charIndex].offsetLeft + 'px';
+                caret.style.top = chars[charIndex].offsetTop + 'px';
+            }
+        }
+
+        function focusInput() { input.focus(); }
+        document.addEventListener('keydown', () => focusInput());
     </script>
 </body>
 </html>
